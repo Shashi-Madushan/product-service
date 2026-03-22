@@ -2,6 +2,7 @@ package lk.ijse.eca.programservice.handler;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.ValidationException;
 import lk.ijse.eca.programservice.exception.DuplicateProductException;
 import lk.ijse.eca.programservice.exception.ProductNotFoundException;
 import lk.ijse.eca.programservice.exception.InsufficientStockException;
@@ -54,6 +55,16 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST, "Insufficient Stock", ex.getMessage(), request.getRequestURI());
         return problemResponse(HttpStatus.BAD_REQUEST, problem);
     }
+
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ProblemDetail> handleValidationException(
+            ValidationException ex, HttpServletRequest request) {
+        log.warn("Validation error on [{}]: {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail problem = buildProblemDetail(
+                HttpStatus.BAD_REQUEST, "Validation Error", ex.getMessage(), request.getRequestURI());
+        return problemResponse(HttpStatus.BAD_REQUEST, problem);
+    }
+
 
     /**
      * Handles {@code @Valid} on {@code @RequestBody} and {@code @ModelAttribute}.

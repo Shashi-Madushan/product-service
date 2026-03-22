@@ -8,12 +8,15 @@ import lk.ijse.eca.programservice.exception.InsufficientStockException;
 import lk.ijse.eca.programservice.mapper.ProductMapper;
 import lk.ijse.eca.programservice.repository.ProductRepository;
 import lk.ijse.eca.programservice.service.ProductService;
+import lk.ijse.eca.programservice.service.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -23,20 +26,36 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final ProductMapper productMapper;
+    private final StorageService storageService;
 
     @Override
     @Transactional
-    public ProductDto createProduct(ProductDto dto) {
-        log.debug("Creating product with ID: {}", dto.getProductId());
+    public ProductDto createProduct(ProductDto dto, List<MultipartFile> images) {
+        log.debug("Creating product with ID: {} and {} images", dto.getProductId(),
+                images != null ? images.size() : 0);
 
         if (productRepository.existsById(dto.getProductId())) {
             log.warn("Duplicate product ID detected: {}", dto.getProductId());
             throw new DuplicateProductException(dto.getProductId());
         }
 
+        // Upload images BEFORE setting on DTO (no DB check needed — product is new)
+        List<String> imageUrls = new ArrayList<>();
+        if (images != null && !images.isEmpty()) {
+            imageUrls = storeImages(dto.getProductId(), images);
+        }
+
+        // Set images in DTO and persist
+        dto.setImages(imageUrls);
         Product saved = productRepository.save(productMapper.toEntity(dto));
-        log.info("Product created successfully: {}", saved.getProductId());
+        log.info("Product created successfully: {} with {} images", saved.getProductId(), imageUrls.size());
         return productMapper.toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public ProductDto createProduct(ProductDto dto) {
+        return createProduct(dto, null);
     }
 
     @Override
@@ -75,8 +94,11 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     @Transactional
-    public ProductDto updateProduct(String productId, ProductDto dto) {
-        log.debug("Updating product with ID: {}", productId);
+    public ProductDto updateProduct(String productId, ProductDto dto, List<MultipartFile> newImages, List<String> imagesToDelete) {
+        log.debug("Updating product with ID: {} - adding {} images, deleting {} images",
+                productId,
+                newImages != null ? newImages.size() : 0,
+                imagesToDelete != null ? imagesToDelete.size() : 0);
 
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> {
@@ -84,10 +106,43 @@ public class ProductServiceImpl implements ProductService {
                     return new ProductNotFoundException(productId);
                 });
 
+        // Delete images marked for removal
+        if (imagesToDelete != null && !imagesToDelete.isEmpty()) {
+            for (String imageUrl : imagesToDelete) {
+                try {
+                    storageService.delete(imageUrl);
+                } catch (Exception e) {
+                    log.warn("Failed to delete image {} for product {}", imageUrl, productId, e);
+                }
+            }
+            if (product.getImages() != null) {
+                product.getImages().removeAll(imagesToDelete);
+            }
+        }
+
+        // Upload new images
+        List<String> newImageUrls = new ArrayList<>();
+        if (newImages != null && !newImages.isEmpty()) {
+            newImageUrls = storeImages(productId, newImages);
+        }
+
+        // Combine existing images with new ones
+        List<String> currentImages = product.getImages() != null
+                ? new ArrayList<>(product.getImages())
+                : new ArrayList<>();
+        currentImages.addAll(newImageUrls);
+        dto.setImages(currentImages);
+
         productMapper.updateEntity(dto, product);
         Product updated = productRepository.save(product);
-        log.info("Product updated successfully: {}", updated.getProductId());
+        log.info("Product updated successfully: {} with {} total images", updated.getProductId(), currentImages.size());
         return productMapper.toDto(updated);
+    }
+
+    @Override
+    @Transactional
+    public ProductDto updateProduct(String productId, ProductDto dto) {
+        return updateProduct(productId, dto, null, null);
     }
 
     @Override
@@ -100,6 +155,17 @@ public class ProductServiceImpl implements ProductService {
                     log.warn("Product not found for deletion: {}", productId);
                     return new ProductNotFoundException(productId);
                 });
+
+        // Delete all associated images from storage
+        if (product.getImages() != null && !product.getImages().isEmpty()) {
+            for (String imageUrl : product.getImages()) {
+                try {
+                    storageService.delete(imageUrl);
+                } catch (Exception e) {
+                    log.warn("Failed to delete image {} for product {}", imageUrl, productId, e);
+                }
+            }
+        }
 
         productRepository.delete(product);
         log.info("Product deleted successfully: {}", productId);
@@ -203,7 +269,7 @@ public class ProductServiceImpl implements ProductService {
                 });
 
         if (product.getStockQuantity() < quantity) {
-            log.warn("Insufficient stock for product {}: available={}, requested={}", 
+            log.warn("Insufficient stock for product {}: available={}, requested={}",
                     productId, product.getStockQuantity(), quantity);
             throw new InsufficientStockException(productId, product.getStockQuantity(), quantity);
         }
@@ -222,5 +288,27 @@ public class ProductServiceImpl implements ProductService {
                 .limit(10)
                 .map(productMapper::toDto)
                 .toList();
+    }
+
+    // -----------------------------------------------------------------------
+    // Private helpers
+    // -----------------------------------------------------------------------
+
+    /**
+     * Stores a list of image files for the given productId and returns their URLs.
+     * Does NOT check if the product exists in the database – this is intentional
+     * so images can be stored before or after the product document is persisted.
+     */
+    private List<String> storeImages(String productId, List<MultipartFile> images) {
+        log.debug("Uploading {} images for product: {}", images.size(), productId);
+        List<String> imageUrls = new ArrayList<>();
+        for (MultipartFile image : images) {
+            if (!image.isEmpty()) {
+                String imageUrl = storageService.store(image, productId);
+                imageUrls.add(imageUrl);
+            }
+        }
+        log.info("Successfully uploaded {} images for product: {}", imageUrls.size(), productId);
+        return imageUrls;
     }
 }

@@ -12,3 +12,20 @@ spring:
     config:
 #      uri: http://config.platform:9000
       uri: http://localhost:9000
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 100MB
+
+app:
+  storage:
+    type: local  # local for dev, gcs for production
+    local-path: ./uploads/products
+    base-url: /api/v1/products/images
+    cloud:
+      provider: gcs
+      bucket-name: ${GCS_BUCKET_NAME:}
+      project-id: ${GCS_PROJECT_ID:}
+      region: us-central1

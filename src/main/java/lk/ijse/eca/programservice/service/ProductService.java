@@ -1,12 +1,14 @@
 package lk.ijse.eca.programservice.service;
 
 import lk.ijse.eca.programservice.dto.ProductDto;
-import lk.ijse.eca.programservice.entity.Product;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 public interface ProductService {
+
+    ProductDto createProduct(ProductDto dto, List<MultipartFile> images);
 
     ProductDto createProduct(ProductDto dto);
 
@@ -15,6 +17,8 @@ public interface ProductService {
     List<ProductDto> getAllProducts();
 
     List<ProductDto> getActiveProducts();
+
+    ProductDto updateProduct(String productId, ProductDto dto, List<MultipartFile> newImages, List<String> imagesToDelete);
 
     ProductDto updateProduct(String productId, ProductDto dto);
 
