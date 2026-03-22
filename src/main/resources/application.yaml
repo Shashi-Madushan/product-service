@@ -1,10 +1,14 @@
 spring:
   application:
-    name: program-service
+    name: product-service
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
 
   config:
     import: "configserver:"
 
   cloud:
     config:
-      uri: http://config.platform:9000
+#      uri: http://config.platform:9000
+      uri: http://localhost:9000

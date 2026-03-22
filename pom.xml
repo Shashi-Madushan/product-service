@@ -11,7 +11,7 @@
     </parent>
 
     <groupId>lk.ijse.eca</groupId>
-    <artifactId>Product-Catalog-Service</artifactId>
+    <artifactId>product-service</artifactId>
     <version>1.0.0</version>
     <name>Product-Catalog-Service</name>
     <description>Product Catalog Service for Retail POS System</description>

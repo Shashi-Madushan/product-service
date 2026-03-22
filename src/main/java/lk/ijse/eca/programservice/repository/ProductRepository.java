@@ -26,7 +26,7 @@ public interface ProductRepository extends MongoRepository<Product, String> {
     List<Product> findByNameContaining(String name);
 
     @Query(value = "{ 'category': ?0, 'isActive': true }", sort = "{ 'stockQuantity': -1 }")
-    List<Product> findByCategoryAndIsActiveOrderByStockQuantityDesc(String category);
+    List<Product> findByCategoryAndIsActiveOrderByStockQuantityDesc(String category, boolean b);
 
     @Query("{ 'barcode': ?0 }")
     Product findByBarcode(String barcode);
