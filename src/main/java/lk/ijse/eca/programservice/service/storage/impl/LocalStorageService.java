@@ -19,7 +19,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Profile({"dev", "local"})
+@Profile({"default", "dev", "local"})
 public class LocalStorageService implements StorageService {
 
     private final StorageProperties storageProperties;
@@ -70,6 +70,9 @@ public class LocalStorageService implements StorageService {
         try {
             // Extract path from URL
             String relativePath = fileUrl.replace(storageProperties.getBaseUrl(), "");
+            if (relativePath.startsWith("/")) {
+                relativePath = relativePath.substring(1);
+            }
             Path filePath = uploadPath.resolve(relativePath).normalize();
 
             // Security check: ensure the path is within upload directory
